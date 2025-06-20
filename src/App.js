@@ -160,7 +160,10 @@ export default function App() {
   }
 
   return (
-    <div style={{ padding: 20, fontFamily: "Arial", direction: "rtl" }}>
+    <div style={{ padding: 20, fontFamily: "Arial", direction: "rtl", backgroundColor: "#e6f2ff", minHeight: "100vh" }}>
+
+      <img src="/logo.jpg" alt="شعار الأكاديمية" style={{ width: '120px', marginBottom: '20px' }} />
+
       <h2>📋 إضافة لاعب جديد</h2>
       <input placeholder="الاسم" value={newPlayer.name} onChange={e => setNewPlayer({ ...newPlayer, name: e.target.value })} />
       <input placeholder="الهاتف" value={newPlayer.phone} onChange={e => setNewPlayer({ ...newPlayer, phone: e.target.value })} />
