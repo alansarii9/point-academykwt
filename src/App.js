@@ -1,11 +1,19 @@
+// ✅ Point Academy App – متصل مع Firebase Firestore بالكامل
+
 import React, { useState, useEffect } from "react";
+import { db } from "./firebase";
+import {
+  addDoc,
+  collection,
+  getDocs,
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  doc
+} from "firebase/firestore";
 
 export default function App() {
-  const [players, setPlayers] = useState(() => {
-    const saved = localStorage.getItem("players");
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  const [players, setPlayers] = useState([]);
   const [newPlayer, setNewPlayer] = useState({
     name: "",
     phone: "",
@@ -24,63 +32,106 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState("");
 
   useEffect(() => {
-    localStorage.setItem("players", JSON.stringify(players));
-  }, [players]);
+    const fetchPlayers = async () => {
+      const snapshot = await getDocs(collection(db, "players"));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPlayers(data);
+    };
+    fetchPlayers();
+  }, []);
 
-  const handleAdd = () => {
-    setPlayers(prev => [...prev, { ...newPlayer, id: Date.now() }]);
-    setNewPlayer({ name: "", phone: "", birthYear: "", position: "", joined: "", size: "", sessions: 0, totalSessions: 0, renewCount: 0 });
+  const handleAdd = async () => {
+    if (!newPlayer.name || !newPlayer.phone) return;
+
+    await addDoc(collection(db, "players"), {
+      ...newPlayer,
+      sessions: 0,
+      totalSessions: 0,
+      renewCount: 0,
+      renewed: false
+    });
+
+    setNewPlayer({
+      name: "",
+      phone: "",
+      birthYear: "",
+      position: "",
+      joined: "",
+      size: "",
+      sessions: 0,
+      totalSessions: 0,
+      renewCount: 0,
+      renewed: false
+    });
+
+    const snapshot = await getDocs(collection(db, "players"));
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setPlayers(data);
   };
 
-  const toggleYear = (year) => {
-    setExpandedYears(prev =>
-      prev.includes(year) ? prev.filter(y => y !== year) : [...prev, year]
-    );
+  const deletePlayer = async (id) => {
+    if (!window.confirm("هل تريد حذف هذا اللاعب؟")) return;
+
+    await deleteDoc(doc(db, "players", id));
+    const snapshot = await getDocs(collection(db, "players"));
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setPlayers(data);
   };
 
-  const markAttendance = (id) => {
-    setPlayers(prev =>
-      prev.map(p => {
-        if (p.id === id) {
-          const newSessions = p.sessions + 1;
-          let renewCount = p.renewCount;
-          let sessions = newSessions;
-          if (newSessions >= 12) {
-            sessions = 0;
-            renewCount += 1;
-          }
-          return { ...p, sessions, totalSessions: p.totalSessions + 1, renewCount };
-        }
-        return p;
-      })
-    );
-  };
+  const markAttendance = async (id) => {
+    const playerRef = doc(db, "players", id);
+    const playerSnap = await getDoc(playerRef);
+    if (!playerSnap.exists()) return;
 
-  const undoAttendance = (id) => {
-    setPlayers(prev =>
-      prev.map(p => {
-        if (p.id === id) {
-          const newSessions = Math.max(p.sessions - 1, 0);
-          const newTotal = Math.max(p.totalSessions - 1, 0);
-          return { ...p, sessions: newSessions, totalSessions: newTotal };
-        }
-        return p;
-      })
-    );
-  };
-
-  const deletePlayer = (id) => {
-    if (window.confirm("هل تريد حذف هذا اللاعب؟")) {
-      setPlayers(prev => prev.filter(p => p.id !== id));
+    const player = playerSnap.data();
+    let newSessions = player.sessions + 1;
+    let renewCount = player.renewCount;
+    if (newSessions >= 12) {
+      newSessions = 0;
+      renewCount += 1;
     }
+
+    await updateDoc(playerRef, {
+      sessions: newSessions,
+      totalSessions: player.totalSessions + 1,
+      renewCount
+    });
+
+    const snapshot = await getDocs(collection(db, "players"));
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setPlayers(data);
   };
 
-  const toggleRenew = (id) => {
-    setPlayers(prev =>
-      prev.map(p =>
-        p.id === id ? { ...p, renewed: !p.renewed } : p
-      )
-    );
+  const undoAttendance = async (id) => {
+    const playerRef = doc(db, "players", id);
+    const playerSnap = await getDoc(playerRef);
+    if (!playerSnap.exists()) return;
+
+    const player = playerSnap.data();
+    const newSessions = Math.max(player.sessions - 1, 0);
+    const newTotal = Math.max(player.totalSessions - 1, 0);
+
+    await updateDoc(playerRef, {
+      sessions: newSessions,
+      totalSessions: newTotal
+    });
+
+    const snapshot = await getDocs(collection(db, "players"));
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setPlayers(data);
+  };
+
+  const toggleRenew = async (id) => {
+    const playerRef = doc(db, "players", id);
+    const playerSnap = await getDoc(playerRef);
+    if (!playerSnap.exists()) return;
+
+    const player = playerSnap.data();
+    await updateDoc(playerRef, { renewed: !player.renewed });
+
+    const snapshot = await getDocs(collection(db, "players"));
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setPlayers(data);
   };
 
   const grouped = players.reduce((acc, p) => {
@@ -93,7 +144,7 @@ export default function App() {
 
   if (!authenticated) {
     return (
-      <div style={{ padding: "40px", fontFamily: "Arial", textAlign: "center" }}>
+      <div style={{ padding: 40, textAlign: "center" }}>
         <h2>🔒 أدخل كلمة المرور للدخول</h2>
         <input
           type="password"
@@ -101,19 +152,15 @@ export default function App() {
           onChange={(e) => setPasswordInput(e.target.value)}
           placeholder="Password"
         />
-        <button onClick={() => {
-          if (passwordInput === "point2025") {
-            setAuthenticated(true);
-          } else {
-            alert("كلمة المرور غير صحيحة");
-          }
-        }}>دخول</button>
+        <button onClick={() => passwordInput === "point2025" && setAuthenticated(true)}>
+          دخول
+        </button>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: "20px", fontFamily: "Arial", direction: "rtl" }}>
+    <div style={{ padding: 20, fontFamily: "Arial", direction: "rtl" }}>
       <h2>📋 إضافة لاعب جديد</h2>
       <input placeholder="الاسم" value={newPlayer.name} onChange={e => setNewPlayer({ ...newPlayer, name: e.target.value })} />
       <input placeholder="الهاتف" value={newPlayer.phone} onChange={e => setNewPlayer({ ...newPlayer, phone: e.target.value })} />
@@ -123,33 +170,27 @@ export default function App() {
       <input placeholder="المقاس" value={newPlayer.size} onChange={e => setNewPlayer({ ...newPlayer, size: e.target.value })} />
       <button onClick={handleAdd}>➕ إضافة</button>
 
-      <h2 style={{ marginTop: "30px" }}>📌 قائمة اللاعبين حسب المواليد</h2>
+      <h2 style={{ marginTop: 30 }}>📌 قائمة اللاعبين حسب المواليد</h2>
       {sortedYears.map(year => (
         <div key={year}>
-          <h3 style={{ cursor: "pointer", color: "blue" }} onClick={() => toggleYear(year)}>
+          <h3 style={{ cursor: "pointer", color: "blue" }} onClick={() => setExpandedYears(prev => prev.includes(year) ? prev.filter(y => y !== year) : [...prev, year])}>
             ▶️ {year} ({grouped[year].length} لاعب)
           </h3>
           {expandedYears.includes(year) && (
             <ul>
               {grouped[year].map(player => (
-                <li key={player.id} style={{
-                  border: "1px solid #ccc",
-                  borderRadius: "8px",
-                  padding: "10px",
-                  margin: "10px 0",
-                  listStyle: "none"
-                }}>
+                <li key={player.id} style={{ border: "1px solid #ccc", borderRadius: 8, padding: 10, margin: "10px 0", listStyle: "none" }}>
                   <strong>{player.name}</strong><br />
                   🎂 {player.birthYear} | 📱 {player.phone} | 📏 {player.size} | 🏟️ {player.position}<br />
                   🗓️ تاريخ الانضمام: {player.joined}<br />
                   🧮 الحصص: {player.sessions} / 💯 الكلي: {player.totalSessions} | 🔁 الدفعات: {player.renewCount}
-                  <div style={{ marginTop: "10px" }}>
+                  <div style={{ marginTop: 10 }}>
                     <button onClick={() => markAttendance(player.id)}>✅ حضور</button>
                     <button onClick={() => undoAttendance(player.id)}>↩️ تراجع</button>
-                    <button onClick={() => toggleRenew(player.id)} style={{ backgroundColor: player.renewed ? "green" : "gray", color: "#fff", marginLeft: "5px" }}>
+                    <button onClick={() => toggleRenew(player.id)} style={{ backgroundColor: player.renewed ? "green" : "gray", color: "#fff", marginLeft: 5 }}>
                       🔄 تجديد
                     </button>
-                    <button onClick={() => deletePlayer(player.id)} style={{ backgroundColor: "#f55", color: "white", marginLeft: "5px" }}>🗑️ حذف</button>
+                    <button onClick={() => deletePlayer(player.id)} style={{ backgroundColor: "#f55", color: "white", marginLeft: 5 }}>🗑️ حذف</button>
                   </div>
                 </li>
               ))}
