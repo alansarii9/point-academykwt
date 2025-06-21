@@ -58,6 +58,7 @@ export default function App() {
       position: "",
       joined: "",
       size: "",
+      price: "",
       sessions: 0,
       totalSessions: 0,
       renewCount: 0,
@@ -171,6 +172,7 @@ export default function App() {
       <input placeholder="المركز" value={newPlayer.position} onChange={e => setNewPlayer({ ...newPlayer, position: e.target.value })} />
       <input type="date" value={newPlayer.joined} onChange={e => setNewPlayer({ ...newPlayer, joined: e.target.value })} />
       <input placeholder="المقاس" value={newPlayer.size} onChange={e => setNewPlayer({ ...newPlayer, size: e.target.value })} />
+      <input placeholder="سعر الاشتراك" value={newPlayer.price} onChange={e => setNewPlayer({ ...newPlayer, price: e.target.value })} />
       <button onClick={handleAdd}>➕ إضافة</button>
 
       <h2 style={{ marginTop: 30 }}>📌 قائمة اللاعبين حسب المواليد</h2>
@@ -184,7 +186,7 @@ export default function App() {
               {grouped[year].map(player => (
                 <li key={player.id} style={{ border: "1px solid #ccc", borderRadius: 8, padding: 10, margin: "10px 0", listStyle: "none" }}>
                   <strong>{player.name}</strong><br />
-                  🎂 {player.birthYear} | 📱 {player.phone} | 📏 {player.size} | 🏟️ {player.position}<br />
+                  🎂 {player.birthYear} | 📱 {player.phone} | 📏 {player.size} | 🏟️ {player.position} | 💰 {player.price} د.ك|<br />
                   🗓️ تاريخ الانضمام: {player.joined}<br />
                   🧮 الحصص: {player.sessions} / 💯 الكلي: {player.totalSessions} | 🔁 الدفعات: {player.renewCount}
                   <div style={{ marginTop: 10 }}>
@@ -194,7 +196,7 @@ export default function App() {
                       🔄 تجديد
                     </button>
                     <button onClick={() => deletePlayer(player.id)} style={{ backgroundColor: "#f55", color: "white", marginLeft: 5 }}>🗑️ حذف</button>
-                  </div>
+                 </div>
                 </li>
               ))}
             </ul>
