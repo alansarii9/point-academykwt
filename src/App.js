@@ -1,4 +1,4 @@
-// ✅ Point Academy App – متصل مع Firebase Firestore بالكامل
+// ✅ Point Academy App – تعديل بيانات اللاعب بدون صور مع خاصية "استلم اللبس"
 
 import React, { useState, useEffect } from "react";
 import { db } from "./firebase";
@@ -21,12 +21,14 @@ export default function App() {
     position: "",
     joined: "",
     size: "",
+    price: "",
     sessions: 0,
     totalSessions: 0,
     renewCount: 0,
-    renewed: false
+    renewed: false,
+    uniformReceived: false
   });
-
+  const [editId, setEditId] = useState(null);
   const [expandedYears, setExpandedYears] = useState([]);
   const [authenticated, setAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -43,13 +45,12 @@ export default function App() {
   const handleAdd = async () => {
     if (!newPlayer.name || !newPlayer.phone) return;
 
-    await addDoc(collection(db, "players"), {
-      ...newPlayer,
-      sessions: 0,
-      totalSessions: 0,
-      renewCount: 0,
-      renewed: false
-    });
+    if (editId) {
+      await updateDoc(doc(db, "players", editId), newPlayer);
+      setEditId(null);
+    } else {
+      await addDoc(collection(db, "players"), newPlayer);
+    }
 
     setNewPlayer({
       name: "",
@@ -62,7 +63,8 @@ export default function App() {
       sessions: 0,
       totalSessions: 0,
       renewCount: 0,
-      renewed: false
+      renewed: false,
+      uniformReceived: false
     });
 
     const snapshot = await getDocs(collection(db, "players"));
@@ -72,7 +74,6 @@ export default function App() {
 
   const deletePlayer = async (id) => {
     if (!window.confirm("هل تريد حذف هذا اللاعب؟")) return;
-
     await deleteDoc(doc(db, "players", id));
     const snapshot = await getDocs(collection(db, "players"));
     const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -135,6 +136,24 @@ export default function App() {
     setPlayers(data);
   };
 
+  const toggleUniform = async (id) => {
+    const playerRef = doc(db, "players", id);
+    const playerSnap = await getDoc(playerRef);
+    if (!playerSnap.exists()) return;
+
+    const player = playerSnap.data();
+    await updateDoc(playerRef, { uniformReceived: !player.uniformReceived });
+
+    const snapshot = await getDocs(collection(db, "players"));
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setPlayers(data);
+  };
+
+  const startEdit = (player) => {
+    setNewPlayer(player);
+    setEditId(player.id);
+  };
+
   const grouped = players.reduce((acc, p) => {
     acc[p.birthYear] = acc[p.birthYear] || [];
     acc[p.birthYear].push(p);
@@ -162,10 +181,9 @@ export default function App() {
 
   return (
     <div style={{ padding: 20, fontFamily: "Arial", direction: "rtl", backgroundColor: "#e6f2ff", minHeight: "100vh" }}>
-
       <img src="/logo.jpg" alt="شعار الأكاديمية" style={{ width: '120px', marginBottom: '20px' }} />
 
-      <h2>📋 إضافة لاعب جديد</h2>
+      <h2>📋 إضافة / تعديل لاعب</h2>
       <input placeholder="الاسم" value={newPlayer.name} onChange={e => setNewPlayer({ ...newPlayer, name: e.target.value })} />
       <input placeholder="الهاتف" value={newPlayer.phone} onChange={e => setNewPlayer({ ...newPlayer, phone: e.target.value })} />
       <input placeholder="سنة الميلاد" value={newPlayer.birthYear} onChange={e => setNewPlayer({ ...newPlayer, birthYear: e.target.value })} />
@@ -173,7 +191,7 @@ export default function App() {
       <input type="date" value={newPlayer.joined} onChange={e => setNewPlayer({ ...newPlayer, joined: e.target.value })} />
       <input placeholder="المقاس" value={newPlayer.size} onChange={e => setNewPlayer({ ...newPlayer, size: e.target.value })} />
       <input placeholder="سعر الاشتراك" value={newPlayer.price} onChange={e => setNewPlayer({ ...newPlayer, price: e.target.value })} />
-      <button onClick={handleAdd}>➕ إضافة</button>
+      <button onClick={handleAdd}>{editId ? "💾 حفظ التعديل" : "➕ إضافة"}</button>
 
       <h2 style={{ marginTop: 30 }}>📌 قائمة اللاعبين حسب المواليد</h2>
       {sortedYears.map(year => (
@@ -186,17 +204,23 @@ export default function App() {
               {grouped[year].map(player => (
                 <li key={player.id} style={{ border: "1px solid #ccc", borderRadius: 8, padding: 10, margin: "10px 0", listStyle: "none" }}>
                   <strong>{player.name}</strong><br />
-                  🎂 {player.birthYear} | 📱 {player.phone} | 📏 {player.size} | 🏟️ {player.position} | 💰 {player.price} د.ك|<br />
+                  🎂 {player.birthYear} | 📱 {player.phone} | 📏 {player.size} | 🏟️ {player.position} | 💰 {player.price} د.ك<br />
                   🗓️ تاريخ الانضمام: {player.joined}<br />
                   🧮 الحصص: {player.sessions} / 💯 الكلي: {player.totalSessions} | 🔁 الدفعات: {player.renewCount}
+                  <br />
+                  👕 اللبس: <span style={{ color: player.uniformReceived ? "green" : "red" }}>{player.uniformReceived ? "استلم" : "لم يستلم"}</span>
                   <div style={{ marginTop: 10 }}>
                     <button onClick={() => markAttendance(player.id)}>✅ حضور</button>
                     <button onClick={() => undoAttendance(player.id)}>↩️ تراجع</button>
                     <button onClick={() => toggleRenew(player.id)} style={{ backgroundColor: player.renewed ? "green" : "gray", color: "#fff", marginLeft: 5 }}>
                       🔄 تجديد
                     </button>
+                    <button onClick={() => toggleUniform(player.id)} style={{ backgroundColor: player.uniformReceived ? "green" : "red", color: "#fff", marginLeft: 5 }}>
+                      👕 اللبس
+                    </button>
+                    <button onClick={() => startEdit(player)} style={{ marginLeft: 5 }}>✏️ تعديل</button>
                     <button onClick={() => deletePlayer(player.id)} style={{ backgroundColor: "#f55", color: "white", marginLeft: 5 }}>🗑️ حذف</button>
-                 </div>
+                  </div>
                 </li>
               ))}
             </ul>
